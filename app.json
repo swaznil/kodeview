@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "KodeView",
+    "slug": "kodeview",
+    "version": "1.0.0",
+    "description": "A lightweight offline code viewer for public GitHub repositories.",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "kodeview",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.swapnilxd.kodeview"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#181817",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.swapnilxd.kodeview"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#0d1117",
+          "dark": {
+            "image": "./assets/images/icon.png",
+            "backgroundColor": "#0d1117"
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "57bc4932-ae00-43f2-8c53-80ee54e7a975"
+      }
+    },
+    "owner": "swapnilxd"
+  }
+}
