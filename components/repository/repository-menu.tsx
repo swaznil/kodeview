@@ -1,6 +1,14 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
-import { Modal, Pressable, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import {
+  Animated,
+  Easing,
+  Modal,
+  Pressable,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppPalette } from '@/hooks/use-theme-preference';
@@ -11,8 +19,101 @@ type MenuAction = {
   destructive?: boolean;
   icon: keyof typeof MaterialIcons.glyphMap;
   label: string;
+  description?: string;
   onPress: () => void;
 };
+
+// ─── Single action row ─────────────────────────────────────────────────────────
+
+function ActionRow({
+  action,
+  index,
+  last,
+  palette,
+  slideAnim,
+}: {
+  action: MenuAction;
+  index: number;
+  last: boolean;
+  palette: ReturnType<typeof useAppPalette>;
+  slideAnim: Animated.Value;
+}) {
+  const translateY = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [12 + index * 4, 0],
+  });
+  const opacity = slideAnim.interpolate({
+    inputRange: [0, 0.4 + index * 0.08, 1],
+    outputRange: [0, 0, 1],
+  });
+
+  return (
+    <Animated.View style={{ opacity, transform: [{ translateY }] }}>
+      <Pressable
+        onPress={action.onPress}
+        style={({ pressed }) => ({
+          alignItems: 'center',
+          backgroundColor: pressed
+            ? action.destructive
+              ? `${palette.danger}14`
+              : palette.secondary
+            : 'transparent',
+          borderBottomColor: last ? 'transparent' : palette.border,
+          borderBottomWidth: last ? 0 : 1,
+          flexDirection: 'row',
+          gap: 12,
+          minHeight: 52,
+          paddingHorizontal: spacing.md,
+          paddingVertical: 2,
+        })}
+      >
+        {/* Icon container */}
+        <View
+          style={{
+            alignItems: 'center',
+            backgroundColor: action.destructive
+              ? `${palette.danger}14`
+              : `${palette.accent}14`,
+            borderRadius: 8,
+            height: 32,
+            justifyContent: 'center',
+            width: 32,
+          }}
+        >
+          <MaterialIcons
+            color={action.destructive ? palette.danger : palette.accent}
+            name={action.icon}
+            size={18}
+          />
+        </View>
+
+        {/* Label + description */}
+        <View style={{ flex: 1, gap: 1 }}>
+          <Text
+            style={{
+              color: action.destructive ? palette.danger : palette.text,
+              fontSize: 14,
+              fontWeight: '600',
+            }}
+          >
+            {action.label}
+          </Text>
+          {action.description ? (
+            <Text style={{ color: palette.muted, fontSize: 11 }}>
+              {action.description}
+            </Text>
+          ) : null}
+        </View>
+
+        {!action.destructive ? (
+          <MaterialIcons color={palette.muted} name="chevron-right" size={18} />
+        ) : null}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// ─── Main component ────────────────────────────────────────────────────────────
 
 export function RepositoryMenu({
   onClose,
@@ -37,47 +138,114 @@ export function RepositoryMenu({
   const palette = paletteProp ?? fallbackPalette;
   const insets = useSafeAreaInsets();
 
-  if (!repository) {
-    return null;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const sheetAnim = useRef(new Animated.Value(0)).current;
+  const backdropAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      // Reset for entry
+      slideAnim.setValue(0);
+      sheetAnim.setValue(0);
+      backdropAnim.setValue(0);
+
+      Animated.parallel([
+        Animated.timing(backdropAnim, {
+          toValue: 1,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+        Animated.spring(sheetAnim, {
+          toValue: 1,
+          damping: 22,
+          stiffness: 280,
+          mass: 0.9,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 1,
+          duration: 380,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+
+  function handleClose() {
+    Animated.parallel([
+      Animated.timing(backdropAnim, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetAnim, {
+        toValue: 0,
+        duration: 200,
+        easing: Easing.in(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]).start(() => onClose());
   }
+
+  if (!repository) return null;
+
+  const sheetTranslate = sheetAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [300, 0],
+  });
 
   const actions: MenuAction[] = [
     {
       icon: pinned ? 'push-pin' : 'bookmark-border',
       label: pinned ? 'Unpin repository' : 'Pin repository',
+      description: pinned ? 'Remove from pinned' : 'Keep at top of your list',
       onPress: () => {
-        onClose();
+        // Pin immediately without closing, so user sees the result
         onPin();
-      },
-    },
-    {
-      icon: 'history',
-      label: 'View commit log',
-      onPress: () => {
-        onClose();
-        router.push({
-          pathname: '/repository/commits',
-          params: { id: repository.id },
-        });
+        handleClose();
       },
     },
     {
       icon: 'sync',
       label: 'Sync repository',
+      description: 'Re-download the latest files from GitHub',
       onPress: () => {
-        onClose();
-        onSync();
+        handleClose();
+        // Slight delay so sheet has time to dismiss
+        setTimeout(onSync, 240);
+      },
+    },
+    {
+      icon: 'history',
+      label: 'Commit history',
+      description: 'Browse recent commits',
+      onPress: () => {
+        handleClose();
+        setTimeout(
+          () =>
+            router.push({
+              pathname: '/repository/commits',
+              params: { id: repository.id },
+            }),
+          240,
+        );
       },
     },
     {
       icon: 'call-split',
       label: 'Branches',
+      description: 'Switch or explore branches',
       onPress: () => {
-        onClose();
-        router.push({
-          pathname: '/repository/branches',
-          params: { id: repository.id },
-        });
+        handleClose();
+        setTimeout(
+          () =>
+            router.push({
+              pathname: '/repository/branches',
+              params: { id: repository.id },
+            }),
+          240,
+        );
       },
     },
     {
@@ -85,62 +253,138 @@ export function RepositoryMenu({
       icon: 'delete-outline',
       label: 'Delete repository',
       onPress: () => {
-        onClose();
-        onDelete();
+        handleClose();
+        setTimeout(onDelete, 240);
       },
     },
   ];
 
   return (
-    <Modal animationType="fade" onRequestClose={onClose} transparent visible={visible}>
+    <Modal
+      animationType="none"
+      onRequestClose={handleClose}
+      statusBarTranslucent
+      transparent
+      visible={visible}
+    >
       <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-        <Pressable onPress={onClose} style={{ backgroundColor: 'rgba(0,0,0,0.45)', flex: 1 }} />
-        <View
+        {/* Backdrop */}
+        <Animated.View
           style={{
-            backgroundColor: palette.fill,
-            borderColor: palette.border,
-            borderRadius: 12,
-            borderWidth: 1,
-            marginHorizontal: 16,
-            marginBottom: Math.max(16, insets.bottom + 8),
-            overflow: 'hidden',
-          }}>
-        <View style={{ borderBottomColor: palette.border, borderBottomWidth: 1, padding: spacing.md }}>
-          <Text numberOfLines={1} style={{ color: palette.text, fontSize: 16, fontWeight: '800' }}>
-            {repository.fullName}
-          </Text>
-          <Text style={{ color: palette.muted, fontSize: 12, marginTop: 2 }}>Repository actions</Text>
-        </View>
-        {actions.map((action) => (
-          <Pressable
-            key={action.label}
-            onPress={action.onPress}
-            style={({ pressed }) => ({
-              alignItems: 'center',
-              backgroundColor: pressed ? palette.secondary : 'transparent',
-              flexDirection: 'row',
-              gap: spacing.md,
-              minHeight: 52,
-              paddingHorizontal: spacing.md,
-            })}>
-            <MaterialIcons
-              color={action.destructive ? palette.danger : palette.text}
-              name={action.icon}
-              size={22}
-            />
-            <Text
+            ...StyleSheet_absoluteFill,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            opacity: backdropAnim,
+          }}
+        >
+          <Pressable onPress={handleClose} style={{ flex: 1 }} />
+        </Animated.View>
+
+        {/* Sheet */}
+        <Animated.View
+          style={{
+            transform: [{ translateY: sheetTranslate }],
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: palette.fill,
+              borderColor: palette.border,
+              borderTopLeftRadius: 18,
+              borderTopRightRadius: 18,
+              borderWidth: 1,
+              marginHorizontal: 0,
+              marginBottom: 0,
+              overflow: 'hidden',
+              paddingBottom: Math.max(8, insets.bottom),
+            }}
+          >
+            {/* Drag handle */}
+            <View
               style={{
-                color: action.destructive ? palette.danger : palette.text,
-                flex: 1,
-                fontSize: 15,
-                fontWeight: '600',
-              }}>
-              {action.label}
-            </Text>
-          </Pressable>
-        ))}
-        </View>
+                alignItems: 'center',
+                paddingTop: 10,
+                paddingBottom: 4,
+              }}
+            >
+              <View
+                style={{
+                  backgroundColor: palette.border,
+                  borderRadius: 3,
+                  height: 4,
+                  width: 36,
+                }}
+              />
+            </View>
+
+            {/* Header */}
+            <View
+              style={{
+                borderBottomColor: palette.border,
+                borderBottomWidth: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+                paddingHorizontal: spacing.md,
+                paddingVertical: 12,
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: palette.text,
+                    fontSize: 15,
+                    fontWeight: '800',
+                    letterSpacing: -0.3,
+                  }}
+                >
+                  {repository.fullName}
+                </Text>
+                <Text style={{ color: palette.muted, fontSize: 11, marginTop: 1 }}>
+                  {pinned ? '📌 Pinned' : 'Repository actions'}
+                </Text>
+              </View>
+              <Pressable
+                hitSlop={10}
+                onPress={handleClose}
+                style={({ pressed }) => ({
+                  alignItems: 'center',
+                  backgroundColor: pressed ? palette.secondary : palette.border,
+                  borderRadius: 14,
+                  height: 28,
+                  justifyContent: 'center',
+                  width: 28,
+                })}
+              >
+                <MaterialIcons color={palette.muted} name="close" size={16} />
+              </Pressable>
+            </View>
+
+            {/* Actions */}
+            <View style={{ paddingTop: 4, paddingBottom: 4 }}>
+              {actions.map((action, index) => (
+                <ActionRow
+                  action={action}
+                  index={index}
+                  key={action.label}
+                  last={index === actions.length - 1}
+                  palette={palette}
+                  slideAnim={slideAnim}
+                />
+              ))}
+            </View>
+          </View>
+        </Animated.View>
       </View>
     </Modal>
   );
 }
+
+// Inline StyleSheet.absoluteFill equivalent to avoid import
+const StyleSheet_absoluteFill = {
+  position: 'absolute' as const,
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+};
