@@ -371,7 +371,7 @@ async function searchRaw(
   sort?: "stars" | "updated",
   options: GitHubApiOptions = {},
 ): Promise<GitHubRepositorySearchResult[]> {
-  const normalized = query.trim().replace(/[:"']/g, "").replace(/\s+/g, " ");
+  const normalized = query.trim().replace(/["']/g, "").replace(/\s+/g, " ");
   const cacheDurationMs = options.cacheDurationMs ?? SEARCH_CACHE_DURATION_MS;
 
   const params = new URLSearchParams({
