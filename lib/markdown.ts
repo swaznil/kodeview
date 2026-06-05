@@ -1,86 +1,279 @@
+// @ts-ignore - optional dependency; dev environment may not have types until install
+import Prism from "prismjs";
+// @ts-ignore
+import "prismjs/components/prism-clike";
+// @ts-ignore
+import "prismjs/components/prism-javascript";
+// @ts-ignore
+import "prismjs/components/prism-typescript";
+// @ts-ignore
+import "prismjs/components/prism-jsx";
+// @ts-ignore
+import "prismjs/components/prism-tsx";
+// @ts-ignore
+import "prismjs/components/prism-python";
+// @ts-ignore
+import "prismjs/components/prism-css";
+// @ts-ignore
+import "prismjs/components/prism-markup";
+// @ts-ignore
+import "prismjs/components/prism-json";
+
 const keywords = new Set([
-  'async',
-  'await',
-  'break',
-  'case',
-  'catch',
-  'class',
-  'const',
-  'continue',
-  'def',
-  'default',
-  'else',
-  'enum',
-  'export',
-  'extends',
-  'false',
-  'fn',
-  'for',
-  'from',
-  'func',
-  'function',
-  'if',
-  'import',
-  'interface',
-  'let',
-  'new',
-  'null',
-  'return',
-  'struct',
-  'switch',
-  'throw',
-  'true',
-  'try',
-  'type',
-  'undefined',
-  'var',
-  'while',
-  'yield',
+  "async",
+  "await",
+  "break",
+  "case",
+  "catch",
+  "class",
+  "const",
+  "continue",
+  "def",
+  "default",
+  "else",
+  "enum",
+  "export",
+  "extends",
+  "false",
+  "fn",
+  "for",
+  "from",
+  "func",
+  "function",
+  "if",
+  "import",
+  "interface",
+  "let",
+  "new",
+  "null",
+  "return",
+  "struct",
+  "switch",
+  "throw",
+  "true",
+  "try",
+  "type",
+  "undefined",
+  "var",
+  "while",
+  "yield",
 ]);
 
 function tokenizeLine(line: string) {
-  return line.match(/\s+|[A-Za-z_$][\w$-]*|\/\/.*|#(?!!).*|\*\/.*|\/\*.*|"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|`(?:\\.|[^`])*`|\d+(?:\.\d+)?|[<][/A-Za-z][^>]*>|./g) ?? [''];
+  return (
+    line.match(
+      /\s+|[A-Za-z_$][\w$-]*|\/\/.*|#(?!!).*|\*\/.*|\/\*.*|"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|`(?:\\.|[^`])*`|\d+(?:\.\d+)?|[<][/A-Za-z][^>]*>|./g,
+    ) ?? [""]
+  );
 }
 
 export function highlightLine(
   line: string,
   extension: string | null,
-  colors: { comment: string; keyword: string; number: string; string: string; tag: string; text: string }
+  colors: {
+    comment: string;
+    keyword: string;
+    number: string;
+    string: string;
+    tag: string;
+    text: string;
+  },
 ) {
-  return tokenizeLine(line).map((part, index) => {
-    let color = colors.text;
+  const ext = (extension ?? "").toLowerCase();
 
-    if (/^(\/\/|#(?!!)|\/\*|\*\/)/.test(part)) {
-      color = colors.comment;
-    } else if (/^["'`]/.test(part)) {
-      color = colors.string;
-    } else if (/^\d/.test(part)) {
-      color = colors.number;
-    } else if (/^<[^>]+>$/.test(part) && ['html', 'xml', 'tsx', 'jsx', 'vue'].includes(extension ?? '')) {
-      color = colors.tag;
-    } else if (keywords.has(part)) {
-      color = colors.keyword;
+  // Map common file extensions to Prism language ids
+  const extToPrism: Record<string, string> = {
+    js: "javascript",
+    jsx: "jsx",
+    ts: "typescript",
+    tsx: "tsx",
+    py: "python",
+    css: "css",
+    scss: "css",
+    html: "markup",
+    htm: "markup",
+    xml: "markup",
+    vue: "markup",
+    json: "json",
+  };
+
+  const prismLang = extToPrism[ext];
+
+  // If Prism supports this language, use it for better tokenization.
+  if (prismLang && (Prism.languages as any)[prismLang]) {
+    const tokens = Prism.tokenize(line, (Prism.languages as any)[prismLang]);
+    const out: { color: string; key: string; text: string }[] = [];
+
+    function pushText(text: string, type?: string | null) {
+      const color =
+        type && /comment/i.test(type)
+          ? colors.comment
+          : type && /string/i.test(type)
+            ? colors.string
+            : type && /number/i.test(type)
+              ? colors.number
+              : type &&
+                  /keyword|operator|function|property|attr-name/i.test(type)
+                ? colors.keyword
+                : type && /tag/i.test(type)
+                  ? colors.tag
+                  : colors.text;
+      out.push({ color, key: `${out.length}-${text}`, text });
     }
 
-    return { color, key: `${index}-${part}`, text: part };
-  });
+    let idx = 0;
+    for (const token of tokens) {
+      if (typeof token === "string") {
+        pushText(token, null);
+        idx += token.length;
+      } else {
+        // token is a Prism Token object
+        const t = token as any;
+        const content =
+          typeof t.content === "string" ? t.content : String(t.content);
+        pushText(content, t.type ?? null);
+        idx += content.length;
+      }
+    }
+
+    return out;
+  }
+
+  const pythonKeywords = new Set([
+    "and",
+    "as",
+    "assert",
+    "break",
+    "class",
+    "continue",
+    "def",
+    "del",
+    "elif",
+    "else",
+    "except",
+    "False",
+    "finally",
+    "for",
+    "from",
+    "global",
+    "if",
+    "import",
+    "in",
+    "is",
+    "lambda",
+    "None",
+    "nonlocal",
+    "not",
+    "or",
+    "pass",
+    "raise",
+    "return",
+    "True",
+    "try",
+    "while",
+    "with",
+    "yield",
+  ]);
+
+  const htmlExt = new Set(["html", "xml", "tsx", "jsx", "vue"]);
+  const cssExt = new Set(["css", "scss", "sass", "less"]);
+  const parts = tokenizeLine(line);
+  const out: { color: string; key: string; text: string }[] = [];
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    let color = colors.text;
+
+    // Comments
+    if (/^(\/\/|#(?!!)|\/\*|\*\/)/.test(part)) {
+      color = colors.comment;
+      out.push({ color, key: `${i}-${part}`, text: part });
+      continue;
+    }
+
+    // Strings
+    if (/^["'`]/.test(part)) {
+      color = colors.string;
+      out.push({ color, key: `${i}-${part}`, text: part });
+      continue;
+    }
+
+    // Numbers (with units)
+    if (/^\d/.test(part) || /^#([0-9a-fA-F]{3,8})$/.test(part)) {
+      color = colors.number;
+      out.push({ color, key: `${i}-${part}`, text: part });
+      continue;
+    }
+
+    // HTML / JSX tag names and attributes
+    if (htmlExt.has(ext)) {
+      // opening angle bracket or tag name like <div or </div
+      if (
+        /^<\/?[A-Za-z][\w:-]*/.test(part) ||
+        /^>$/.test(part) ||
+        /^<\/?>?$/.test(part)
+      ) {
+        color = colors.tag;
+        out.push({ color, key: `${i}-${part}`, text: part });
+        continue;
+      }
+
+      // attribute name (heuristic: token followed by '=' or next token is '=' )
+      const next = parts[i + 1] ?? "";
+      if (/^[A-Za-z_:][-A-Za-z0-9_:.]*$/.test(part) && next === "=") {
+        color = colors.keyword;
+        out.push({ color, key: `${i}-${part}`, text: part });
+        continue;
+      }
+    }
+
+    // CSS heuristics: property names (token before ':'), hex colors, units handled above
+    if (cssExt.has(ext)) {
+      const next = parts[i + 1] ?? "";
+      if (/^[A-Za-z-]+$/.test(part) && next === ":") {
+        color = colors.keyword;
+        out.push({ color, key: `${i}-${part}`, text: part });
+        continue;
+      }
+    }
+
+    // Python keywords
+    if (ext === "py") {
+      if (pythonKeywords.has(part)) {
+        color = colors.keyword;
+      }
+      out.push({ color, key: `${i}-${part}`, text: part });
+      continue;
+    }
+
+    // Default keywords (JS/TS/CS/etc)
+    if (keywords.has(part)) {
+      color = colors.keyword;
+      out.push({ color, key: `${i}-${part}`, text: part });
+      continue;
+    }
+
+    out.push({ color, key: `${i}-${part}`, text: part });
+  }
+
+  return out;
 }
 
 export function isMarkdownExtension(extension: string | null) {
-  return extension === 'md' || extension === 'mdx' || extension === 'markdown';
+  return extension === "md" || extension === "mdx" || extension === "markdown";
 }
 
 export type MarkdownBlock =
-  | { type: 'heading'; level: number; text: string }
-  | { type: 'paragraph'; text: string }
-  | { type: 'list'; ordered: boolean; items: string[] }
-  | { type: 'quote'; text: string }
-  | { type: 'code'; language: string | null; lines: string[] }
-  | { type: 'rule' }
-  | { type: 'spacer' };
+  | { type: "heading"; level: number; text: string }
+  | { type: "paragraph"; text: string }
+  | { type: "list"; ordered: boolean; items: string[] }
+  | { type: "quote"; text: string }
+  | { type: "code"; language: string | null; lines: string[] }
+  | { type: "rule" }
+  | { type: "spacer" };
 
 export function parseMarkdown(content: string): MarkdownBlock[] {
-  const lines = content.replace(/\r\n/g, '\n').split('\n');
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
   const blocks: MarkdownBlock[] = [];
   let index = 0;
   let inCode = false;
@@ -94,7 +287,7 @@ export function parseMarkdown(content: string): MarkdownBlock[] {
       return;
     }
 
-    blocks.push({ type: 'list', ordered: listOrdered, items: listItems });
+    blocks.push({ type: "list", ordered: listOrdered, items: listItems });
     listItems = [];
   }
 
@@ -102,9 +295,9 @@ export function parseMarkdown(content: string): MarkdownBlock[] {
     const line = lines[index];
     const trimmed = line.trim();
 
-    if (trimmed.startsWith('```')) {
+    if (trimmed.startsWith("```")) {
       if (inCode) {
-        blocks.push({ type: 'code', language: codeLanguage, lines: codeLines });
+        blocks.push({ type: "code", language: codeLanguage, lines: codeLines });
         codeLines = [];
         codeLanguage = null;
         inCode = false;
@@ -126,8 +319,8 @@ export function parseMarkdown(content: string): MarkdownBlock[] {
 
     if (!trimmed) {
       flushList();
-      if (blocks.at(-1)?.type !== 'spacer') {
-        blocks.push({ type: 'spacer' });
+      if (blocks.at(-1)?.type !== "spacer") {
+        blocks.push({ type: "spacer" });
       }
       index += 1;
       continue;
@@ -136,14 +329,18 @@ export function parseMarkdown(content: string): MarkdownBlock[] {
     const heading = trimmed.match(/^(#{1,6})\s+(.*)$/);
     if (heading) {
       flushList();
-      blocks.push({ type: 'heading', level: heading[1].length, text: heading[2] });
+      blocks.push({
+        type: "heading",
+        level: heading[1].length,
+        text: heading[2],
+      });
       index += 1;
       continue;
     }
 
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
       flushList();
-      blocks.push({ type: 'rule' });
+      blocks.push({ type: "rule" });
       index += 1;
       continue;
     }
@@ -170,27 +367,33 @@ export function parseMarkdown(content: string): MarkdownBlock[] {
       continue;
     }
 
-    if (trimmed.startsWith('>')) {
+    if (trimmed.startsWith(">")) {
       flushList();
-      blocks.push({ type: 'quote', text: trimmed.replace(/^>\s?/, '') });
+      blocks.push({ type: "quote", text: trimmed.replace(/^>\s?/, "") });
       index += 1;
       continue;
     }
 
     flushList();
-    blocks.push({ type: 'paragraph', text: trimmed });
+    blocks.push({ type: "paragraph", text: trimmed });
     index += 1;
   }
 
   if (inCode) {
-    blocks.push({ type: 'code', language: codeLanguage, lines: codeLines });
+    blocks.push({ type: "code", language: codeLanguage, lines: codeLines });
   }
 
   flushList();
   return blocks;
 }
 
-export type InlineSegment = { text: string; bold?: boolean; code?: boolean; italic?: boolean; link?: string };
+export type InlineSegment = {
+  text: string;
+  bold?: boolean;
+  code?: boolean;
+  italic?: boolean;
+  link?: string;
+};
 
 export function parseInline(text: string): InlineSegment[] {
   const segments: InlineSegment[] = [];
@@ -205,11 +408,11 @@ export function parseInline(text: string): InlineSegment[] {
 
     const token = match[0];
 
-    if (token.startsWith('**')) {
+    if (token.startsWith("**")) {
       segments.push({ text: token.slice(2, -2), bold: true });
-    } else if (token.startsWith('*')) {
+    } else if (token.startsWith("*")) {
       segments.push({ text: token.slice(1, -1), italic: true });
-    } else if (token.startsWith('`')) {
+    } else if (token.startsWith("`")) {
       segments.push({ text: token.slice(1, -1), code: true });
     } else {
       const linkMatch = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);

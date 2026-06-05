@@ -5,6 +5,8 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Linking,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -19,7 +21,6 @@ import { useAppPalette } from "@/hooks/use-theme-preference";
 import {
   GitHubRateLimitError,
   fetchTrendingRepositories,
-  getLastRateLimitInfo,
   hasGitHubToken,
   resolveGitHubRepository,
   searchGitHubRepositories,
@@ -27,7 +28,11 @@ import {
   type RateLimitInfo,
 } from "@/lib/github";
 import { spacing } from "@/lib/palette";
-import { importRepository } from "@/lib/repository-storage";
+import {
+  formatBytes,
+  importRepository,
+  type ImportProgress,
+} from "@/lib/repository-storage";
 
 // ─── Language colour map ───────────────────────────────────────────────────────
 
@@ -88,7 +93,9 @@ function RateLimitBanner({
   info: RateLimitInfo;
   palette: ReturnType<typeof useAppPalette>;
 }) {
-  const [countdown, setCountdown] = useState(formatResetCountdown(info.resetAt));
+  const [countdown, setCountdown] = useState(
+    formatResetCountdown(info.resetAt),
+  );
   const isAuthenticated = hasGitHubToken();
 
   useEffect(() => {
@@ -129,7 +136,8 @@ function RateLimitBanner({
         </Text>
       ) : (
         <Text style={{ color: palette.muted, fontSize: 12 }}>
-          Authenticated search limit reached. Results will resume in {countdown}.
+          Authenticated search limit reached. Results will resume in {countdown}
+          .
         </Text>
       )}
     </View>
@@ -165,9 +173,12 @@ function SkeletonCard({
         }),
       ]),
     ).start();
-  }, []);
+  }, [shimmer, delay]);
 
-  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.7] });
+  const opacity = shimmer.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.35, 0.7],
+  });
 
   return (
     <Animated.View
@@ -241,11 +252,17 @@ function ResultCard({
   index,
   onClone,
   repository,
+  progress,
+  sizeBytes,
+  controller,
 }: {
   cloning: string | null;
   index: number;
   onClone: (fullName: string) => void;
   repository: GitHubRepositorySearchResult;
+  progress?: ImportProgress | null;
+  sizeBytes?: number | null;
+  controller?: never;
 }) {
   const palette = useAppPalette();
   const busy = cloning === repository.fullName;
@@ -270,7 +287,7 @@ function ResultCard({
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, [fadeAnim, slideAnim, index]);
 
   function handlePressIn() {
     Animated.spring(scaleAnim, {
@@ -313,7 +330,9 @@ function ResultCard({
         }}
       >
         {/* Top row */}
-        <View style={{ alignItems: "flex-start", flexDirection: "row", gap: 10 }}>
+        <View
+          style={{ alignItems: "flex-start", flexDirection: "row", gap: 10 }}
+        >
           <OwnerAvatar
             owner={repository.owner}
             palette={palette}
@@ -337,15 +356,43 @@ function ResultCard({
               >
                 {repository.fullName}
               </Text>
-              {busy ? (
-                <ActivityIndicator color={palette.accent} size="small" />
-              ) : (
-                <MaterialIcons
-                  color={cloning ? palette.muted : palette.accent}
-                  name="download"
-                  size={18}
-                />
-              )}
+
+              <View
+                style={{ flexDirection: "row", gap: 8, alignItems: "center" }}
+              >
+                <Pressable
+                  disabled={Boolean(cloning)}
+                  hitSlop={8}
+                  onPress={() => onClone(repository.fullName)}
+                >
+                  {busy ? (
+                    <ActivityIndicator color={palette.accent} size="small" />
+                  ) : (
+                    <MaterialIcons
+                      color={cloning ? palette.muted : palette.accent}
+                      name="download"
+                      size={18}
+                    />
+                  )}
+                </Pressable>
+
+                <Pressable
+                  hitSlop={8}
+                  onPress={async () => {
+                    try {
+                      await Linking.openURL(repository.htmlUrl);
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                >
+                  <MaterialIcons
+                    color={palette.muted}
+                    name="open-in-new"
+                    size={18}
+                  />
+                </Pressable>
+              </View>
             </View>
 
             {/* Description */}
@@ -363,14 +410,72 @@ function ResultCard({
               </Text>
             ) : (
               <Text
-                style={{ color: `${palette.muted}60`, fontSize: 12, fontStyle: "italic", marginTop: 2 }}
+                style={{
+                  color: `${palette.muted}60`,
+                  fontSize: 12,
+                  fontStyle: "italic",
+                  marginTop: 2,
+                }}
               >
                 No description
               </Text>
             )}
           </View>
         </View>
-
+        {/* Progress / size row */}
+        {progress ? (
+          <View style={{ marginTop: 10 }}>
+            <Text
+              style={{ color: palette.muted, fontSize: 11, marginBottom: 6 }}
+            >
+              {progress.phase === "download"
+                ? "Downloading"
+                : progress.phase === "extract"
+                  ? "Extracting"
+                  : "Indexing"}{" "}
+              — {progress.message}
+            </Text>
+            <View
+              style={{
+                height: 6,
+                backgroundColor: palette.border,
+                borderRadius: 6,
+                overflow: "hidden",
+              }}
+            >
+              <View
+                style={{
+                  height: 6,
+                  backgroundColor: palette.accent,
+                  width: `${Math.round((progress.progress ?? 0) * 100)}%`,
+                }}
+              />
+            </View>
+          </View>
+        ) : null}
+        {progress ? (
+          <View style={{ marginTop: 8 }}>
+            <Text style={{ color: palette.muted, fontSize: 11 }}>
+              {(() => {
+                const downloaded = progress.downloadedBytes ?? 0;
+                const total = progress.totalBytes ?? undefined;
+                const percent = total
+                  ? Math.round((downloaded / total) * 100)
+                  : Math.round((progress.progress ?? 0) * 100);
+                if (total)
+                  return `${formatBytes(downloaded)} of ${formatBytes(total)} (${percent}%)`;
+                return `${percent}%`;
+              })()}
+            </Text>
+          </View>
+        ) : null}
+        {sizeBytes != null ? (
+          <View style={{ marginTop: 10 }}>
+            <Text style={{ color: palette.muted, fontSize: 11 }}>
+              {formatBytes(sizeBytes)}
+            </Text>
+          </View>
+        ) : null}
         {/* Stats row */}
         <View
           style={{
@@ -399,22 +504,14 @@ function ResultCard({
             </View>
           ) : null}
 
-          <View
-            style={{ alignItems: "center", flexDirection: "row", gap: 3 }}
-          >
-            <MaterialIcons
-              color={palette.muted}
-              name="star-border"
-              size={12}
-            />
+          <View style={{ alignItems: "center", flexDirection: "row", gap: 3 }}>
+            <MaterialIcons color={palette.muted} name="star-border" size={12} />
             <Text style={{ color: palette.muted, fontSize: 11 }}>
               {formatCount(repository.stars)}
             </Text>
           </View>
 
-          <View
-            style={{ alignItems: "center", flexDirection: "row", gap: 3 }}
-          >
+          <View style={{ alignItems: "center", flexDirection: "row", gap: 3 }}>
             <MaterialIcons color={palette.muted} name="call-split" size={12} />
             <Text style={{ color: palette.muted, fontSize: 11 }}>
               {formatCount(repository.forks)}
@@ -526,7 +623,8 @@ function TokenPromptBanner({
           Add a GitHub token for better results
         </Text>
         <Text style={{ color: palette.muted, fontSize: 11, marginTop: 1 }}>
-          Unauthenticated searches are limited to 10/min. Tap to add a PAT in Settings.
+          Unauthenticated searches are limited to 10/min. Tap to add a PAT in
+          Settings.
         </Text>
       </View>
       <MaterialIcons color={palette.muted} name="chevron-right" size={18} />
@@ -541,14 +639,23 @@ export default function DiscoverScreen() {
 
   const [query, setQuery] = useState("");
   const [trending, setTrending] = useState<GitHubRepositorySearchResult[]>([]);
-  const [searchResults, setSearchResults] = useState<GitHubRepositorySearchResult[]>([]);
+  const [searchResults, setSearchResults] = useState<
+    GitHubRepositorySearchResult[]
+  >([]);
   const [mode, setMode] = useState<"browse" | "search">("browse");
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [cloning, setCloning] = useState<string | null>(null);
+  const [importProgress, setImportProgress] = useState<
+    Record<string, ImportProgress | null>
+  >({});
+  const [repoSizes, setRepoSizes] = useState<Record<string, number | null>>({});
+  // controllers removed — pause/resume/cancel not supported anymore
   const [error, setError] = useState<string | null>(null);
-  const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
+  const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(
+    null,
+  );
 
   const searchAbortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<TextInput>(null);
@@ -639,21 +746,43 @@ export default function DiscoverScreen() {
   async function clone(fullName: string) {
     setCloning(fullName);
     setError(null);
+    setImportProgress((p) => ({
+      ...p,
+      [fullName]: {
+        phase: "download",
+        progress: 0,
+        message: "Preparing download",
+      },
+    }));
+
+    // no controller is created; importRepository is called without controller
 
     try {
       const details = await resolveGitHubRepository(fullName);
-      const saved = await importRepository(details);
-      router.replace({ pathname: "/repository/[id]", params: { id: saved.id } });
+      const saved = await importRepository(details, (prog) =>
+        setImportProgress((p) => ({ ...p, [fullName]: prog })),
+      );
+
+      setRepoSizes((s) => ({ ...s, [fullName]: saved.sizeBytes }));
+      router.replace({
+        pathname: "/repository/[id]",
+        params: { id: saved.id },
+      });
     } catch (caught) {
       if (caught instanceof GitHubRateLimitError) {
         setRateLimitInfo(caught.info);
         return;
       }
+      // pause/cancel no longer supported; handle errors normally
       setError(
-        caught instanceof Error ? caught.message : "Could not clone this repository.",
+        caught instanceof Error
+          ? caught.message
+          : "Could not clone this repository.",
       );
     } finally {
       setCloning(null);
+      setImportProgress((p) => ({ ...p, [fullName]: null }));
+      // no controllers to clean up
     }
   }
 
@@ -668,8 +797,8 @@ export default function DiscoverScreen() {
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      keyboardDismissMode="on-drag"
-      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+      keyboardShouldPersistTaps="never"
       refreshControl={
         mode === "browse" ? (
           <RefreshControl
@@ -723,6 +852,7 @@ export default function DiscoverScreen() {
         <TextInput
           autoCapitalize="none"
           autoCorrect={false}
+          onSubmitEditing={() => inputRef.current?.blur()}
           onChangeText={setQuery}
           placeholder="Search repositories, topics, owners…"
           placeholderTextColor={palette.muted}
@@ -767,7 +897,9 @@ export default function DiscoverScreen() {
       {/* List */}
       <View style={{ gap: 10 }}>
         <SectionLabel
-          count={isIdle && visibleItems.length > 0 ? visibleItems.length : undefined}
+          count={
+            isIdle && visibleItems.length > 0 ? visibleItems.length : undefined
+          }
           label={mode === "search" ? "Search results" : "Trending this month"}
           palette={palette}
         />
@@ -817,6 +949,11 @@ export default function DiscoverScreen() {
                 key={repository.fullName}
                 onClone={clone}
                 repository={repository}
+                progress={importProgress[repository.fullName]}
+                sizeBytes={
+                  repository.sizeBytes ?? repoSizes[repository.fullName]
+                }
+                // pause/cancel controllers removed
               />
             ))
           : null}

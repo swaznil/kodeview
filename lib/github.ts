@@ -38,6 +38,7 @@ export type GitHubRepositorySearchResult = Omit<
   forks: number;
   openIssues: number;
   updatedAt: string | null;
+  sizeBytes?: number;
 };
 
 export type RateLimitInfo = {
@@ -58,6 +59,7 @@ type GitHubRepositoryResponse = {
   name?: string;
   owner?: { avatar_url?: string; login?: string };
   pushed_at?: string | null;
+  size?: number;
   stargazers_count?: number;
   zipball_url?: string;
   message?: string;
@@ -106,7 +108,7 @@ export class GitHubRateLimitError extends Error {
 const GITHUB_API_URL = "https://api.github.com";
 const SEARCH_PAGE_SIZE = 30;
 const CACHE_DURATION_MS = 1000 * 60 * 15; // 15 min
-const SEARCH_CACHE_DURATION_MS = 1000 * 60 * 5; // 5 min
+const SEARCH_CACHE_DURATION_MS = 1000 * 60 * 10; // 10 min
 
 // ─── PAT storage ───────────────────────────────────────────────────────────────
 // Token is stored in-memory only for this session. The caller (settings screen)
@@ -196,7 +198,8 @@ async function githubFetch<T>(
   options: GitHubApiOptions = {},
 ): Promise<T> {
   const { signal, cacheDurationMs = CACHE_DURATION_MS } = options;
-  const cacheKey = cacheDurationMs === 0 ? null : `${_token ? "auth" : "anon"}:${path}`;
+  const cacheKey =
+    cacheDurationMs === 0 ? null : `${_token ? "auth" : "anon"}:${path}`;
 
   if (cacheKey) {
     const cached = getCached<T>(cacheKey);
@@ -302,8 +305,11 @@ export async function resolveGitHubRepository(
     options,
   ).catch((err: unknown) => {
     if (err instanceof GitHubRateLimitError) throw err;
-    const msg = err instanceof Error ? err.message : "GitHub returned an error.";
-    throw new Error(msg === "Not Found" ? "Repository not found or not public." : msg);
+    const msg =
+      err instanceof Error ? err.message : "GitHub returned an error.";
+    throw new Error(
+      msg === "Not Found" ? "Repository not found or not public." : msg,
+    );
   });
 
   const owner = data.owner?.login ?? parsed.owner;
@@ -351,6 +357,8 @@ function mapSearchItem(
     forks: item.forks_count ?? 0,
     openIssues: item.open_issues_count ?? 0,
     updatedAt: item.updated_at ?? null,
+    sizeBytes:
+      item.size != null ? Math.max(0, Math.floor(item.size * 1024)) : undefined,
   };
 }
 
@@ -435,13 +443,20 @@ function daysAgo(days: number): string {
 
 export async function searchGitHubRepositories(
   query: string,
-  options: { sort?: "stars" | "updated" | "best-match"; signal?: AbortSignal } = {},
+  options: {
+    sort?: "stars" | "updated" | "best-match";
+    signal?: AbortSignal;
+  } = {},
 ): Promise<GitHubRepositorySearchResult[]> {
   const normalized = query.trim().replace(/[:"']/g, "").replace(/\s+/g, " ");
   if (normalized.length < 2) return [];
-  return searchRaw(normalized, options.sort === "best-match" ? undefined : options.sort, {
-    signal: options.signal,
-  });
+  return searchRaw(
+    normalized,
+    options.sort === "best-match" ? undefined : options.sort,
+    {
+      signal: options.signal,
+    },
+  );
 }
 
 export async function fetchTrendingRepositories(
@@ -460,7 +475,8 @@ export async function fetchTrendingRepositories(
       if (repo.stars < 100) return false;
       if (!repo.pushedAt) return false;
       const daysSincePush =
-        (Date.now() - new Date(repo.pushedAt).getTime()) / (1000 * 60 * 60 * 24);
+        (Date.now() - new Date(repo.pushedAt).getTime()) /
+        (1000 * 60 * 60 * 24);
       return daysSincePush <= 30;
     })
     .sort((a, b) => calculateTrendingScore(b) - calculateTrendingScore(a));
@@ -522,7 +538,14 @@ export async function fetchRepositoryBranches(
 
 // ─── Image helpers ─────────────────────────────────────────────────────────────
 
-export const imageExtensions = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp"]);
+export const imageExtensions = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "bmp",
+]);
 
 export function isImageExtension(extension: string | null): boolean {
   return extension !== null && imageExtensions.has(extension.toLowerCase());

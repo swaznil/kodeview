@@ -1,19 +1,12 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { router } from 'expo-router';
-import { useEffect, useRef } from 'react';
-import {
-  Animated,
-  Easing,
-  Modal,
-  Pressable,
-  Text,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { router } from "expo-router";
+import { useEffect, useRef } from "react";
+import { Animated, Easing, Modal, Pressable, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useAppPalette } from '@/hooks/use-theme-preference';
-import { spacing, type Palette } from '@/lib/palette';
-import type { SavedRepository } from '@/lib/repository-storage';
+import { useAppPalette } from "@/hooks/use-theme-preference";
+import { spacing, type Palette } from "@/lib/palette";
+import type { SavedRepository } from "@/lib/repository-storage";
 
 type MenuAction = {
   destructive?: boolean;
@@ -52,15 +45,15 @@ function ActionRow({
       <Pressable
         onPress={action.onPress}
         style={({ pressed }) => ({
-          alignItems: 'center',
+          alignItems: "center",
           backgroundColor: pressed
             ? action.destructive
               ? `${palette.danger}14`
               : palette.secondary
-            : 'transparent',
-          borderBottomColor: last ? 'transparent' : palette.border,
+            : "transparent",
+          borderBottomColor: last ? "transparent" : palette.border,
           borderBottomWidth: last ? 0 : 1,
-          flexDirection: 'row',
+          flexDirection: "row",
           gap: 12,
           minHeight: 52,
           paddingHorizontal: spacing.md,
@@ -70,13 +63,13 @@ function ActionRow({
         {/* Icon container */}
         <View
           style={{
-            alignItems: 'center',
+            alignItems: "center",
             backgroundColor: action.destructive
               ? `${palette.danger}14`
               : `${palette.accent}14`,
             borderRadius: 8,
             height: 32,
-            justifyContent: 'center',
+            justifyContent: "center",
             width: 32,
           }}
         >
@@ -93,7 +86,7 @@ function ActionRow({
             style={{
               color: action.destructive ? palette.danger : palette.text,
               fontSize: 14,
-              fontWeight: '600',
+              fontWeight: "600",
             }}
           >
             {action.label}
@@ -170,7 +163,7 @@ export function RepositoryMenu({
         }),
       ]).start();
     }
-  }, [visible]);
+  }, [visible, backdropAnim, sheetAnim, slideAnim]);
 
   function handleClose() {
     Animated.parallel([
@@ -197,9 +190,9 @@ export function RepositoryMenu({
 
   const actions: MenuAction[] = [
     {
-      icon: pinned ? 'push-pin' : 'bookmark-border',
-      label: pinned ? 'Unpin repository' : 'Pin repository',
-      description: pinned ? 'Remove from pinned' : 'Keep at top of your list',
+      icon: pinned ? "push-pin" : "bookmark-border",
+      label: pinned ? "Unpin repository" : "Pin repository",
+      description: pinned ? "Remove from pinned" : "Keep at top of your list",
       onPress: () => {
         // Pin immediately without closing, so user sees the result
         onPin();
@@ -207,9 +200,9 @@ export function RepositoryMenu({
       },
     },
     {
-      icon: 'sync',
-      label: 'Sync repository',
-      description: 'Re-download the latest files from GitHub',
+      icon: "sync",
+      label: "Sync repository",
+      description: "Re-download the latest files from GitHub",
       onPress: () => {
         handleClose();
         // Slight delay so sheet has time to dismiss
@@ -217,15 +210,15 @@ export function RepositoryMenu({
       },
     },
     {
-      icon: 'history',
-      label: 'Commit history',
-      description: 'Browse recent commits',
+      icon: "history",
+      label: "Commit history",
+      description: "Browse recent commits",
       onPress: () => {
         handleClose();
         setTimeout(
           () =>
             router.push({
-              pathname: '/repository/commits',
+              pathname: "/repository/commits",
               params: { id: repository.id },
             }),
           240,
@@ -233,15 +226,15 @@ export function RepositoryMenu({
       },
     },
     {
-      icon: 'call-split',
-      label: 'Branches',
-      description: 'Switch or explore branches',
+      icon: "call-split",
+      label: "Branches",
+      description: "Switch or explore branches",
       onPress: () => {
         handleClose();
         setTimeout(
           () =>
             router.push({
-              pathname: '/repository/branches',
+              pathname: "/repository/branches",
               params: { id: repository.id },
             }),
           240,
@@ -250,8 +243,8 @@ export function RepositoryMenu({
     },
     {
       destructive: true,
-      icon: 'delete-outline',
-      label: 'Delete repository',
+      icon: "delete-outline",
+      label: "Delete repository",
       onPress: () => {
         handleClose();
         setTimeout(onDelete, 240);
@@ -267,12 +260,12 @@ export function RepositoryMenu({
       transparent
       visible={visible}
     >
-      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+      <View style={{ flex: 1, justifyContent: "flex-end" }}>
         {/* Backdrop */}
         <Animated.View
           style={{
             ...StyleSheet_absoluteFill,
-            backgroundColor: 'rgba(0,0,0,0.5)',
+            backgroundColor: "rgba(0,0,0,0.5)",
             opacity: backdropAnim,
           }}
         >
@@ -294,14 +287,14 @@ export function RepositoryMenu({
               borderWidth: 1,
               marginHorizontal: 0,
               marginBottom: 0,
-              overflow: 'hidden',
+              overflow: "hidden",
               paddingBottom: Math.max(8, insets.bottom),
             }}
           >
             {/* Drag handle */}
             <View
               style={{
-                alignItems: 'center',
+                alignItems: "center",
                 paddingTop: 10,
                 paddingBottom: 4,
               }}
@@ -321,8 +314,8 @@ export function RepositoryMenu({
               style={{
                 borderBottomColor: palette.border,
                 borderBottomWidth: 1,
-                flexDirection: 'row',
-                alignItems: 'center',
+                flexDirection: "row",
+                alignItems: "center",
                 gap: 10,
                 paddingHorizontal: spacing.md,
                 paddingVertical: 12,
@@ -334,25 +327,27 @@ export function RepositoryMenu({
                   style={{
                     color: palette.text,
                     fontSize: 15,
-                    fontWeight: '800',
+                    fontWeight: "800",
                     letterSpacing: -0.3,
                   }}
                 >
                   {repository.fullName}
                 </Text>
-                <Text style={{ color: palette.muted, fontSize: 11, marginTop: 1 }}>
-                  {pinned ? '📌 Pinned' : 'Repository actions'}
+                <Text
+                  style={{ color: palette.muted, fontSize: 11, marginTop: 1 }}
+                >
+                  {pinned ? "📌 Pinned" : "Repository actions"}
                 </Text>
               </View>
               <Pressable
                 hitSlop={10}
                 onPress={handleClose}
                 style={({ pressed }) => ({
-                  alignItems: 'center',
+                  alignItems: "center",
                   backgroundColor: pressed ? palette.secondary : palette.border,
                   borderRadius: 14,
                   height: 28,
-                  justifyContent: 'center',
+                  justifyContent: "center",
                   width: 28,
                 })}
               >
@@ -382,7 +377,7 @@ export function RepositoryMenu({
 
 // Inline StyleSheet.absoluteFill equivalent to avoid import
 const StyleSheet_absoluteFill = {
-  position: 'absolute' as const,
+  position: "absolute" as const,
   top: 0,
   left: 0,
   right: 0,

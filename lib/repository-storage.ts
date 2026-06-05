@@ -1,12 +1,12 @@
-import * as FileSystem from 'expo-file-system/legacy';
-import JSZip from 'jszip';
+import * as FileSystem from "expo-file-system/legacy";
+import JSZip from "jszip";
 
-import type { GitHubRepositoryDetails } from '@/lib/github';
+import type { GitHubRepositoryDetails } from "@/lib/github";
 
-const APP_DIRECTORY = `${FileSystem.documentDirectory ?? ''}kodeview/`;
+const APP_DIRECTORY = `${FileSystem.documentDirectory ?? ""}kodeview/`;
 const REPOSITORY_DIRECTORY = `${APP_DIRECTORY}repositories/`;
 const DOWNLOAD_DIRECTORY = `${APP_DIRECTORY}downloads/`;
-const MANIFEST_FILE = '.kodeview.json';
+const MANIFEST_FILE = ".kodeview.json";
 const MAX_TEXT_FILE_BYTES = 1.5 * 1024 * 1024;
 
 export type SavedRepository = {
@@ -34,71 +34,75 @@ export type RepositoryTreeNode = {
   name: string;
   path: string;
   size: number;
-  type: 'directory' | 'file';
+  type: "directory" | "file";
   uri: string;
 };
 
 export type ImportProgress = {
   message: string;
-  phase: 'download' | 'extract' | 'index';
+  phase: "download" | "extract" | "index";
   progress: number;
+  downloadedBytes?: number;
+  totalBytes?: number;
 };
 
+// ImportController removed: pause/resume/cancel features are no longer supported.
+
 const textExtensions = new Set([
-  '',
-  'bat',
-  'c',
-  'config',
-  'cpp',
-  'cs',
-  'css',
-  'csv',
-  'dart',
-  'env',
-  'go',
-  'gradle',
-  'graphql',
-  'h',
-  'hpp',
-  'html',
-  'java',
-  'js',
-  'json',
-  'jsx',
-  'kt',
-  'lock',
-  'log',
-  'lua',
-  'm',
-  'md',
-  'mdx',
-  'mm',
-  'php',
-  'plist',
-  'properties',
-  'py',
-  'rb',
-  'rs',
-  'sass',
-  'scss',
-  'sh',
-  'sql',
-  'swift',
-  'toml',
-  'ts',
-  'tsx',
-  'txt',
-  'wast',
-  'wat',
-  'vue',
-  'xml',
-  'yaml',
-  'yml',
+  "",
+  "bat",
+  "c",
+  "config",
+  "cpp",
+  "cs",
+  "css",
+  "csv",
+  "dart",
+  "env",
+  "go",
+  "gradle",
+  "graphql",
+  "h",
+  "hpp",
+  "html",
+  "java",
+  "js",
+  "json",
+  "jsx",
+  "kt",
+  "lock",
+  "log",
+  "lua",
+  "m",
+  "md",
+  "mdx",
+  "mm",
+  "php",
+  "plist",
+  "properties",
+  "py",
+  "rb",
+  "rs",
+  "sass",
+  "scss",
+  "sh",
+  "sql",
+  "swift",
+  "toml",
+  "ts",
+  "tsx",
+  "txt",
+  "wast",
+  "wat",
+  "vue",
+  "xml",
+  "yaml",
+  "yml",
 ]);
 
 function assertDocumentDirectory() {
   if (!FileSystem.documentDirectory) {
-    throw new Error('Document storage is unavailable on this device.');
+    throw new Error("Document storage is unavailable on this device.");
   }
 }
 
@@ -107,30 +111,37 @@ function hasDocumentDirectory() {
 }
 
 function sanitizeId(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function dirname(path: string) {
-  const index = path.lastIndexOf('/');
-  return index === -1 ? '' : path.slice(0, index + 1);
+  const index = path.lastIndexOf("/");
+  return index === -1 ? "" : path.slice(0, index + 1);
 }
 
 function extensionFor(name: string) {
   const clean = name.toLowerCase();
-  const index = clean.lastIndexOf('.');
-  return index === -1 ? '' : clean.slice(index + 1);
+  const index = clean.lastIndexOf(".");
+  return index === -1 ? "" : clean.slice(index + 1);
 }
 
 function hasUnsafePath(path: string) {
-  return path.split('/').some((part) => part === '..' || part === '.');
+  return path.split("/").some((part) => part === ".." || part === ".");
 }
 
 async function ensureDirectory(uri: string) {
-  await FileSystem.makeDirectoryAsync(uri, { intermediates: true }).catch(() => undefined);
+  await FileSystem.makeDirectoryAsync(uri, { intermediates: true }).catch(
+    () => undefined,
+  );
 }
 
 async function readManifest(repoUri: string) {
-  const manifest = await FileSystem.readAsStringAsync(`${repoUri}${MANIFEST_FILE}`);
+  const manifest = await FileSystem.readAsStringAsync(
+    `${repoUri}${MANIFEST_FILE}`,
+  );
   return JSON.parse(manifest) as SavedRepository;
 }
 
@@ -141,7 +152,9 @@ export async function listSavedRepositories(): Promise<SavedRepository[]> {
 
   await ensureDirectory(REPOSITORY_DIRECTORY);
 
-  const ids = await FileSystem.readDirectoryAsync(REPOSITORY_DIRECTORY).catch(() => []);
+  const ids = await FileSystem.readDirectoryAsync(REPOSITORY_DIRECTORY).catch(
+    () => [],
+  );
   const repositories = await Promise.all(
     ids.map(async (id) => {
       try {
@@ -149,7 +162,7 @@ export async function listSavedRepositories(): Promise<SavedRepository[]> {
       } catch {
         return null;
       }
-    })
+    }),
   );
 
   return repositories
@@ -170,43 +183,82 @@ export function clearRepositoryTreeCache(repositoryId?: string) {
 
 export async function importRepository(
   details: GitHubRepositoryDetails,
-  onProgress?: (progress: ImportProgress) => void
+  onProgress?: (progress: ImportProgress) => void,
 ): Promise<SavedRepository> {
   assertDocumentDirectory();
   await ensureDirectory(REPOSITORY_DIRECTORY);
   await ensureDirectory(DOWNLOAD_DIRECTORY);
 
-  const id = sanitizeId(`${details.owner}-${details.repo}-${details.defaultBranch}`);
+  const id = sanitizeId(
+    `${details.owner}-${details.repo}-${details.defaultBranch}`,
+  );
   const repoUri = `${REPOSITORY_DIRECTORY}${id}/`;
   const zipUri = `${DOWNLOAD_DIRECTORY}${id}.zip`;
 
-  onProgress?.({ phase: 'download', progress: 0, message: 'Preparing download' });
+  onProgress?.({
+    phase: "download",
+    progress: 0,
+    message: "Preparing download",
+  });
   await FileSystem.deleteAsync(repoUri, { idempotent: true });
-  await FileSystem.deleteAsync(zipUri, { idempotent: true }).catch(() => undefined);
+  await FileSystem.deleteAsync(zipUri, { idempotent: true }).catch(
+    () => undefined,
+  );
   await ensureDirectory(repoUri);
 
-  const download = FileSystem.createDownloadResumable(details.zipUrl, zipUri, {}, (event) => {
-    const expected = event.totalBytesExpectedToWrite;
-    const progress = expected > 0 ? event.totalBytesWritten / expected : 0;
-    onProgress?.({
-      phase: 'download',
-      progress: Math.min(progress, 0.98),
-      message: 'Downloading ZIP from GitHub',
-    });
-  });
+  const download = FileSystem.createDownloadResumable(
+    details.zipUrl,
+    zipUri,
+    {},
+    (event) => {
+      const expected = event.totalBytesExpectedToWrite ?? 0;
+      const written = event.totalBytesWritten ?? 0;
+      const progress = expected > 0 ? written / expected : 0;
+      onProgress?.({
+        phase: "download",
+        progress: Math.min(progress, 0.98),
+        message: "Downloading ZIP from GitHub",
+        downloadedBytes: written,
+        totalBytes: expected > 0 ? expected : undefined,
+      });
+    },
+  );
+
   const result = await download.downloadAsync();
 
-  if (!result || result.status < 200 || result.status >= 300) {
-    throw new Error(`Download failed with status ${result?.status ?? 'unknown'}.`);
+  // Report final downloaded size if possible
+  try {
+    const info = await FileSystem.getInfoAsync(zipUri);
+    if (info.exists) {
+      onProgress?.({
+        phase: "download",
+        progress: 1,
+        message: "Download complete",
+        downloadedBytes: info.size ?? undefined,
+        totalBytes: info.size ?? undefined,
+      });
+    }
+  } catch {
+    // ignore
   }
 
-  onProgress?.({ phase: 'extract', progress: 0, message: 'Reading ZIP archive' });
+  if (!result || result.status < 200 || result.status >= 300) {
+    throw new Error(
+      `Download failed with status ${result?.status ?? "unknown"}.`,
+    );
+  }
+
+  onProgress?.({
+    phase: "extract",
+    progress: 0,
+    message: "Reading ZIP archive",
+  });
   const zipBase64 = await FileSystem.readAsStringAsync(zipUri, {
     encoding: FileSystem.EncodingType.Base64,
   });
   const zip = await JSZip.loadAsync(zipBase64, { base64: true });
   const entries = Object.values(zip.files).filter((entry) => !entry.dir);
-  const rootName = entries[0]?.name.split('/')[0] ?? details.repo;
+  const rootName = entries[0]?.name.split("/")[0] ?? details.repo;
 
   let fileCount = 0;
   let sizeBytes = 0;
@@ -228,7 +280,7 @@ export async function importRepository(
       await ensureDirectory(`${repoUri}${parent}`);
     }
 
-    const base64 = await entry.async('base64');
+    const base64 = await entry.async("base64");
     await FileSystem.writeAsStringAsync(`${repoUri}${relativePath}`, base64, {
       encoding: FileSystem.EncodingType.Base64,
     });
@@ -238,7 +290,7 @@ export async function importRepository(
 
     if (index % 12 === 0 || index === entries.length - 1) {
       onProgress?.({
-        phase: 'extract',
+        phase: "extract",
         progress: entries.length > 0 ? (index + 1) / entries.length : 1,
         message: `Extracting ${fileCount.toLocaleString()} files`,
       });
@@ -264,10 +316,19 @@ export async function importRepository(
     sizeBytes,
   };
 
-  onProgress?.({ phase: 'index', progress: 0.98, message: 'Saving local index' });
-  await FileSystem.writeAsStringAsync(`${repoUri}${MANIFEST_FILE}`, JSON.stringify(manifest));
-  await FileSystem.deleteAsync(zipUri, { idempotent: true }).catch(() => undefined);
-  onProgress?.({ phase: 'index', progress: 1, message: 'Ready offline' });
+  onProgress?.({
+    phase: "index",
+    progress: 0.98,
+    message: "Saving local index",
+  });
+  await FileSystem.writeAsStringAsync(
+    `${repoUri}${MANIFEST_FILE}`,
+    JSON.stringify(manifest),
+  );
+  await FileSystem.deleteAsync(zipUri, { idempotent: true }).catch(
+    () => undefined,
+  );
+  onProgress?.({ phase: "index", progress: 1, message: "Ready offline" });
   clearRepositoryTreeCache(manifest.id);
 
   return manifest;
@@ -280,7 +341,7 @@ export async function deleteRepository(repository: SavedRepository) {
 
 export async function loadRepositoryTree(
   repository: SavedRepository,
-  options?: { refresh?: boolean }
+  options?: { refresh?: boolean },
 ): Promise<RepositoryTreeNode[]> {
   if (!options?.refresh) {
     const cached = repositoryTreeCache.get(repository.id);
@@ -289,12 +350,15 @@ export async function loadRepositoryTree(
     }
   }
 
-  const tree = await readDirectory(repository.rootUri, '');
+  const tree = await readDirectory(repository.rootUri, "");
   repositoryTreeCache.set(repository.id, tree);
   return tree;
 }
 
-export async function findRepositoryNode(repository: SavedRepository, path: string): Promise<RepositoryTreeNode | null> {
+export async function findRepositoryNode(
+  repository: SavedRepository,
+  path: string,
+): Promise<RepositoryTreeNode | null> {
   const tree = await loadRepositoryTree(repository);
   const queue = [...tree];
 
@@ -308,9 +372,14 @@ export async function findRepositoryNode(repository: SavedRepository, path: stri
   return null;
 }
 
-async function readDirectory(baseUri: string, relativePath: string): Promise<RepositoryTreeNode[]> {
+async function readDirectory(
+  baseUri: string,
+  relativePath: string,
+): Promise<RepositoryTreeNode[]> {
   const directoryUri = `${baseUri}${relativePath}`;
-  const names = await FileSystem.readDirectoryAsync(directoryUri).catch(() => []);
+  const names = await FileSystem.readDirectoryAsync(directoryUri).catch(
+    () => [],
+  );
   const nodes = await Promise.all(
     names
       .filter((name) => name !== MANIFEST_FILE)
@@ -324,7 +393,7 @@ async function readDirectory(baseUri: string, relativePath: string): Promise<Rep
             name,
             path,
             uri: `${uri}/`,
-            type: 'directory' as const,
+            type: "directory" as const,
             extension: null,
             size: 0,
             children: await readDirectory(baseUri, `${path}/`),
@@ -335,16 +404,16 @@ async function readDirectory(baseUri: string, relativePath: string): Promise<Rep
           name,
           path,
           uri,
-          type: 'file' as const,
+          type: "file" as const,
           extension: extensionFor(name),
-          size: info.exists && !info.isDirectory ? info.size ?? 0 : 0,
+          size: info.exists && !info.isDirectory ? (info.size ?? 0) : 0,
         };
-      })
+      }),
   );
 
   return nodes.sort((a, b) => {
     if (a.type !== b.type) {
-      return a.type === 'directory' ? -1 : 1;
+      return a.type === "directory" ? -1 : 1;
     }
 
     return a.name.localeCompare(b.name);
@@ -352,16 +421,18 @@ async function readDirectory(baseUri: string, relativePath: string): Promise<Rep
 }
 
 export async function readRepositoryFile(node: RepositoryTreeNode) {
-  if (node.type !== 'file') {
-    throw new Error('Select a file to open it.');
+  if (node.type !== "file") {
+    throw new Error("Select a file to open it.");
   }
 
   if (node.size > MAX_TEXT_FILE_BYTES) {
-    throw new Error('This file is too large for the mobile text viewer.');
+    throw new Error("This file is too large for the mobile text viewer.");
   }
 
-  if (!textExtensions.has(node.extension ?? '')) {
-    throw new Error('Binary or unsupported file type. The repository is saved locally.');
+  if (!textExtensions.has(node.extension ?? "")) {
+    throw new Error(
+      "Binary or unsupported file type. The repository is saved locally.",
+    );
   }
 
   return FileSystem.readAsStringAsync(node.uri, {

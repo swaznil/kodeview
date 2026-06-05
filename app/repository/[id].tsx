@@ -150,7 +150,7 @@ export default function RepositoryScreen() {
           autoCorrect={false}
           editable={!loading}
           onChangeText={setQuery}
-          placeholder="Filter files"
+          placeholder="Search files"
           placeholderTextColor={palette.muted}
           style={{
             backgroundColor: palette.fill,

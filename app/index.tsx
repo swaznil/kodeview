@@ -108,7 +108,6 @@ export default function HomeScreen() {
     const pinned = await togglePinnedRepository(repository.id);
     const next = await getPinnedRepositoryIds();
     setPinnedIds(next);
-    Alert.alert(pinned ? 'Pinned' : 'Unpinned', `${repository.fullName} ${pinned ? 'is now pinned.' : 'was unpinned.'}`);
   }
 
   async function handleSync(repository: SavedRepository) {
