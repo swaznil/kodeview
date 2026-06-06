@@ -11,7 +11,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.swapnilxd.kodeview"
+      "bundleIdentifier": "com.swaznil.kodeview"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +22,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.swapnilxd.kodeview"
+      "package": "com.swaznil.kodeview"
     },
     "web": {
       "output": "static",
@@ -51,9 +51,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "57bc4932-ae00-43f2-8c53-80ee54e7a975"
+        "projectId": "28f3d91d-855b-4260-8b89-ded3422f7f08"
       }
     },
-    "owner": "swapnilxd"
+    "owner": "swaznil"
   }
 }
