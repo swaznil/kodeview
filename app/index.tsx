@@ -105,7 +105,7 @@ export default function HomeScreen() {
   );
 
   async function handlePin(repository: SavedRepository) {
-    const pinned = await togglePinnedRepository(repository.id);
+    await togglePinnedRepository(repository.id);
     const next = await getPinnedRepositoryIds();
     setPinnedIds(next);
   }

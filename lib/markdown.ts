@@ -18,6 +18,28 @@ import "prismjs/components/prism-css";
 import "prismjs/components/prism-markup";
 // @ts-ignore
 import "prismjs/components/prism-json";
+// @ts-ignore
+import "prismjs/components/prism-bash";
+// @ts-ignore
+import "prismjs/components/prism-java";
+// @ts-ignore
+import "prismjs/components/prism-c";
+// @ts-ignore
+import "prismjs/components/prism-cpp";
+// @ts-ignore
+import "prismjs/components/prism-csharp";
+// @ts-ignore
+import "prismjs/components/prism-go";
+// @ts-ignore
+import "prismjs/components/prism-rust";
+// @ts-ignore
+import "prismjs/components/prism-ruby";
+// @ts-ignore
+import "prismjs/components/prism-php";
+// @ts-ignore
+import "prismjs/components/prism-swift";
+// @ts-ignore
+import "prismjs/components/prism-kotlin";
 
 const keywords = new Set([
   "async",
@@ -71,15 +93,23 @@ export function highlightLine(
   line: string,
   extension: string | null,
   colors: {
+    attr: string;
     comment: string;
+    function: string;
     keyword: string;
     number: string;
+    operator: string;
+    punctuation: string;
     string: string;
     tag: string;
     text: string;
+    variable: string;
   },
 ) {
-  const ext = (extension ?? "").toLowerCase();
+  const ext = (extension ?? "")
+    .toLowerCase()
+    .replace(/^language-/, "")
+    .replace(/^\./, "");
 
   // Map common file extensions to Prism language ids
   const extToPrism: Record<string, string> = {
@@ -90,11 +120,31 @@ export function highlightLine(
     py: "python",
     css: "css",
     scss: "css",
+    sass: "css",
+    less: "css",
     html: "markup",
     htm: "markup",
     xml: "markup",
+    svg: "markup",
     vue: "markup",
     json: "json",
+    sh: "bash",
+    bash: "bash",
+    zsh: "bash",
+    java: "java",
+    c: "c",
+    h: "c",
+    cpp: "cpp",
+    cc: "cpp",
+    cxx: "cpp",
+    cs: "csharp",
+    go: "go",
+    rs: "rust",
+    rb: "ruby",
+    php: "php",
+    swift: "swift",
+    kt: "kotlin",
+    kts: "kotlin",
   };
 
   const prismLang = extToPrism[ext];
@@ -105,35 +155,50 @@ export function highlightLine(
     const out: { color: string; key: string; text: string }[] = [];
 
     function pushText(text: string, type?: string | null) {
+      if (!text) return;
       const color =
         type && /comment/i.test(type)
           ? colors.comment
+          : type && /tag|doctype|prolog|cdata/i.test(type)
+            ? colors.tag
+            : type && /attr-name|property|class-name|builtin/i.test(type)
+              ? colors.attr
           : type && /string/i.test(type)
             ? colors.string
-            : type && /number/i.test(type)
+            : type && /number|boolean|constant|symbol/i.test(type)
               ? colors.number
-              : type &&
-                  /keyword|operator|function|property|attr-name/i.test(type)
+              : type && /function|method/i.test(type)
+                ? colors.function
+              : type && /keyword|selector|important/i.test(type)
                 ? colors.keyword
-                : type && /tag/i.test(type)
-                  ? colors.tag
-                  : colors.text;
+                : type && /operator/i.test(type)
+                  ? colors.operator
+                  : type && /punctuation/i.test(type)
+                    ? colors.punctuation
+                    : type && /variable|parameter/i.test(type)
+                      ? colors.variable
+                      : colors.text;
       out.push({ color, key: `${out.length}-${text}`, text });
     }
 
-    let idx = 0;
-    for (const token of tokens) {
+    function flattenToken(token: unknown, inheritedType: string | null = null) {
       if (typeof token === "string") {
-        pushText(token, null);
-        idx += token.length;
-      } else {
-        // token is a Prism Token object
-        const t = token as any;
-        const content =
-          typeof t.content === "string" ? t.content : String(t.content);
-        pushText(content, t.type ?? null);
-        idx += content.length;
+        pushText(token, inheritedType);
+        return;
       }
+
+      if (Array.isArray(token)) {
+        token.forEach((child) => flattenToken(child, inheritedType));
+        return;
+      }
+
+      const prismToken = token as { content?: unknown; type?: string };
+      const type = prismToken.type ?? inheritedType;
+      flattenToken(prismToken.content ?? "", type);
+    }
+
+    for (const token of tokens) {
+      flattenToken(token);
     }
 
     return out;

@@ -10,6 +10,7 @@ type CodeBlockProps = {
   fontSize: number;
   palette: Palette;
   showLines: boolean;
+  virtualized?: boolean;
   wrap: boolean;
 };
 
@@ -43,12 +44,17 @@ const CodeLine = memo(function CodeLine({
 }) {
   const colors = useMemo(
     () => ({
+      attr: '#9CDCFE',
       comment: palette.muted,
-      keyword: palette.danger,
-      number: '#d29922',
-      string: palette.success,
-      tag: '#7ee787',
+      function: '#DCDCAA',
+      keyword: '#C586C0',
+      number: '#B5CEA8',
+      operator: '#D4D4D4',
+      punctuation: '#808080',
+      string: '#CE9178',
+      tag: '#569CD6',
       text: palette.text,
+      variable: '#4FC1FF',
     }),
     [palette]
   );
@@ -96,6 +102,7 @@ export const CodeBlock = memo(function CodeBlock({
   fontSize,
   palette,
   showLines,
+  virtualized = true,
   wrap,
 }: CodeBlockProps) {
   const lines = useMemo(() => content.replace(/\t/g, '  ').split(/\r\n|\n|\r/), [content]);
@@ -129,11 +136,12 @@ export const CodeBlock = memo(function CodeBlock({
     [lineHeight]
   );
 
-  if (lines.length > VIRTUALIZE_AFTER) {
+  if (virtualized && lines.length > VIRTUALIZE_AFTER) {
     return (
       <FlatList
         contentContainerStyle={{ padding: 16 }}
         data={data}
+        directionalLockEnabled
         getItemLayout={getItemLayout}
         initialNumToRender={32}
         keyExtractor={(item) => String(item.index)}
@@ -141,6 +149,8 @@ export const CodeBlock = memo(function CodeBlock({
         nestedScrollEnabled
         removeClippedSubviews
         renderItem={renderItem}
+        scrollEventThrottle={16}
+        style={{ flex: 1, minWidth: wrap ? '100%' : undefined }}
         windowSize={12}
       />
     );

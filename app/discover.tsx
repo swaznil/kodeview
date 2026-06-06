@@ -1,12 +1,11 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   Easing,
   Linking,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -54,6 +53,8 @@ const LANGUAGE_COLORS: Record<string, string> = {
   Vue: "#41B883",
   CSS: "#563D7C",
 };
+
+const SEARCH_DEBOUNCE_MS = 550;
 
 function languageColor(lang: string | null): string {
   if (!lang) return "#8B949E";
@@ -247,7 +248,7 @@ function SkeletonCard({
 
 // ─── Result card ───────────────────────────────────────────────────────────────
 
-function ResultCard({
+const ResultCard = memo(function ResultCard({
   cloning,
   index,
   onClone,
@@ -548,7 +549,7 @@ function ResultCard({
       </Pressable>
     </Animated.View>
   );
-}
+});
 
 // ─── Section label ─────────────────────────────────────────────────────────────
 
@@ -706,13 +707,12 @@ export default function DiscoverScreen() {
       return;
     }
 
-    setMode("search");
-
     const timer = setTimeout(async () => {
       searchAbortRef.current?.abort();
       const controller = new AbortController();
       searchAbortRef.current = controller;
 
+      setMode("search");
       setSearching(true);
       setError(null);
       setRateLimitInfo(null);
@@ -736,14 +736,14 @@ export default function DiscoverScreen() {
       } finally {
         if (!controller.signal.aborted) setSearching(false);
       }
-    }, 400);
+    }, SEARCH_DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
   }, [query]);
 
   // ── Clone ────────────────────────────────────────────────────────────────────
 
-  async function clone(fullName: string) {
+  const clone = useCallback(async (fullName: string) => {
     setCloning(fullName);
     setError(null);
     setImportProgress((p) => ({
@@ -784,38 +784,40 @@ export default function DiscoverScreen() {
       setImportProgress((p) => ({ ...p, [fullName]: null }));
       // no controllers to clean up
     }
-  }
+  }, []);
 
   // ── Derived ──────────────────────────────────────────────────────────────────
 
   const visibleItems = mode === "search" ? searchResults : trending;
   const isIdle = !loading && !searching;
   const isEmpty = isIdle && visibleItems.length === 0 && !rateLimitInfo;
+  const refreshTrending = useCallback(async () => {
+    setRefreshing(true);
+    setRateLimitInfo(null);
+    await loadTrending();
+    setRefreshing(false);
+  }, [loadTrending]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-      keyboardShouldPersistTaps="never"
+      keyboardDismissMode="none"
+      keyboardShouldPersistTaps="handled"
       refreshControl={
         mode === "browse" ? (
           <RefreshControl
             refreshing={refreshing}
             tintColor={palette.accent}
-            onRefresh={async () => {
-              setRefreshing(true);
-              setRateLimitInfo(null);
-              await loadTrending();
-              setRefreshing(false);
-            }}
+            onRefresh={refreshTrending}
           />
         ) : undefined
       }
       style={{ backgroundColor: palette.background }}
       contentContainerStyle={{
         gap: 14,
+        flexGrow: 1,
         minHeight: "100%",
         padding: 16,
         paddingBottom: 48,

@@ -207,6 +207,7 @@ export function ReaderBody({
       fontSize={fontSize}
       palette={palette}
       showLines={showCodeLines}
+      virtualized={wrap}
       wrap={wrap}
     />
   );
@@ -216,8 +217,17 @@ export function ReaderBody({
   }
 
   return (
-    <ScrollView horizontal style={{ flex: 1 }}>
-      {code}
+    <ScrollView
+      directionalLockEnabled
+      nestedScrollEnabled
+      style={{ flex: 1 }}>
+      <ScrollView
+        directionalLockEnabled
+        horizontal
+        nestedScrollEnabled
+        contentContainerStyle={{ flexGrow: 1 }}>
+        {code}
+      </ScrollView>
     </ScrollView>
   );
 }
